@@ -328,9 +328,50 @@ jobs:
             ./*.deb
             ./*.pkg.tar.zst
 
+  build-appimage:
+    name: Linux AppImage x86_64
+    needs: [build-linux]
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          submodules: recursive
+
+      # Das AppImage-Rezept nimmt die Icons aus res/
+      - name: Apply quicksupport customizations
+        run: bash .github/quicksupport/apply.sh linux
+
+      - name: Download linux packages
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-packages
+          path: ./linux-packages
+
+      - name: Build appimage package
+        shell: bash
+        run: |
+          mv ./linux-packages/${APP_NAME}-${VERSION}-x86_64.deb appimage/rustdesk.deb
+          sudo apt-get update -y
+          sudo apt-get install -y libarchive-tools libfuse2
+          sudo pip3 install "setuptools_scm<10"
+          sudo pip3 install git+https://github.com/rustdesk-org/appimage-builder.git
+          pushd appimage
+          ./build-apprun.sh x86_64
+          sudo appimage-builder --skip-tests --recipe ./AppImageBuilder-x86_64.yml
+          cmp AppDir/AppRun appimage-build/AppRun/v2.0.0/AppRun-Release-x86_64
+          popd
+          sudo mv ./appimage/*.AppImage "./${APP_NAME}-${VERSION}-x86_64.AppImage"
+
+      - name: Upload appimage
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: linux-appimage
+          path: ./*.AppImage
+
   release:
     name: GitHub Release
-    needs: [build-windows, build-linux]
+    needs: [build-windows, build-linux, build-appimage]
     if: ${{ !cancelled() && (needs.build-windows.result == 'success' || needs.build-linux.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
@@ -338,7 +379,7 @@ jobs:
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: ./dist
-          pattern: "{windows-exe,linux-packages}"
+          pattern: "{windows-exe,linux-packages,linux-appimage}"
           merge-multiple: true
 
       - name: Publish Release
