@@ -5,8 +5,9 @@ set -euo pipefail
 
 PLATFORM="${1:?Plattform angeben: windows oder linux}"
 QS_DIR=".github/quicksupport"
+# CR entfernen, falls die Datei mit Windows-Zeilenenden ausgecheckt wurde
 # shellcheck source=config.env
-source "$QS_DIR/config.env"
+source <(tr -d '\r' < "$QS_DIR/config.env")
 
 CONFIG_RS="libs/hbb_common/src/config.rs"
 
@@ -34,7 +35,7 @@ patch_file "$CONFIG_RS" \
 echo "== Update-Pruefung gegen offizielle Releases abschalten"
 # Sonst wuerde ein offizielles Update den Client ohne eingebauten Server ersetzen.
 patch_file "src/common.rs" \
-  'pub fn check_software_update\(\) \{\n    if is_custom_client\(\) \{' \
+  'pub fn check_software_update\(\) \{\r?\n    if is_custom_client\(\) \{' \
   $'pub fn check_software_update() {\n    if true || is_custom_client() {'
 
 echo "== Icons"
